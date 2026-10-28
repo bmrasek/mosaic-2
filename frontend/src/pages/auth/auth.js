@@ -10,7 +10,9 @@ function authMarkup(mode) {
         <h1 id="auth-title">${register ? "Join Mosaic." : "Sign in."}</h1>
         <p class="muted">${register ? "Start building your personal media world." : "Continue exploring your world."}</p>
         <form class="auth-form" id="auth-form">
-          <label>Email<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+          <label>Email
+            <input name="email" type="email" autocomplete="${register ? "email" : "username"}" required maxlength="254">
+          </label>
           <label>Password<input name="password" type="password" autocomplete="${register ? "new-password" : "current-password"}" required minlength="8" maxlength="128"></label>
           <p class="auth-message" id="auth-message" role="alert"></p>
           <button class="button button-primary" type="submit">${register ? "Create account" : "Sign in"}</button>
@@ -38,7 +40,7 @@ export function renderAuthPage(container, mode, onSuccess) {
       await (mode === "register"
         ? authService.register(formData.get("email"), formData.get("password"))
         : authService.login(formData.get("email"), formData.get("password")));
-      onSuccess();
+      onSuccess({ isNewAccount: mode === "register" });
     } catch (error) {
       message.textContent = escapeHtml(error.message);
       button.disabled = false;

@@ -29,10 +29,11 @@
 
 ## Security gaps
 
-Production sessions use `HttpOnly`, `Secure`, and `SameSite=None`; state
-changing requests use an exact configured Origin check. Authentication uses
-Argon2id and hashed session tokens. Rate limiting and a browser-level multipart
-upload test remain `[TODO]`.
+Production sessions use `HttpOnly`, `Secure`, and `SameSite=None`. The Pages
+Function keeps browser requests and cookies on the frontend origin, while the
+Go API checks the original request Origin. Authentication uses Argon2id and
+hashed session tokens. Rate limiting and a browser-level multipart upload test
+remain `[TODO]`.
 
 ## Evidence
 
@@ -42,6 +43,7 @@ upload test remain `[TODO]`.
 - `backend/internal/profile/handler.go`
 - `backend/internal/profile/service.go`
 - `frontend/src/api/http.js`
+- `frontend/functions/api/[[path]].js`
 - `frontend/src/auth/auth-service.js`
 - `frontend/src/pages/auth/auth.js`
 - `frontend/src/main.js`

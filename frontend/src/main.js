@@ -41,6 +41,7 @@ let currentUser = null;
 let currentProfile = null;
 let sessionLoaded = false;
 let sessionGeneration = 0;
+let pendingNewAccountGreeting = false;
 
 function updateThemeToggle() {
   const resolved = resolveTheme(getTheme());
@@ -246,9 +247,10 @@ function renderRoute() {
       loadSession().then(renderRoute);
       return;
     }
-    renderAuthPage(content, path.slice(1), () => {
+    renderAuthPage(content, path.slice(1), ({ isNewAccount }) => {
       const destination = new URLSearchParams(window.location.search).get("redirect");
       const safeDestination = safeRedirectPath(destination ?? "/dashboard");
+      pendingNewAccountGreeting = isNewAccount && safeDestination === "/dashboard";
       window.history.pushState({}, "", safeDestination);
       sessionGeneration += 1;
       sessionLoaded = false;
@@ -299,7 +301,9 @@ function renderRoute() {
       renderRoute();
       return;
     }
-    renderDashboard(content, { user: currentUser });
+    const isNewAccount = pendingNewAccountGreeting;
+    pendingNewAccountGreeting = false;
+    renderDashboard(content, { user: currentUser, isNewAccount });
   } else if (path === "/" || path === "/explore") {
     renderExplorePage(content);
   } else if (path === "/search") {

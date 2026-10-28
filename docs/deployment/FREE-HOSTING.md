@@ -90,8 +90,10 @@ add a new migration
 - Build command: `npm run build`
 - Output directory: `dist`
 - Public variable: `VITE_TMDB_API_KEY`
-- `VITE_API_BASE_URL`: the Render API origin, without a trailing slash. Leave
-  it empty for local Vite proxy development.
+- `VITE_API_BASE_URL`: the Render API origin, without a trailing slash. The
+  Pages Function reads it at runtime to proxy same-origin `/api/*` calls.
+  Configure it for production and preview environments; local Vite continues
+  to use its `/api` development proxy.
 
 ### Render
 
@@ -122,12 +124,12 @@ make check
 
 For a deployed frontend, set `VITE_API_BASE_URL` to the Render API origin and
 set `CORS_ALLOWED_ORIGINS` to the exact Cloudflare Pages origin. Set
-`APP_ENV=production` in Render. Production cookies are issued with
-`HttpOnly; Secure; SameSite=None` because Cloudflare Pages and Render are
-cross-site origins. Local development keeps `SameSite=Lax` and does not require
-HTTPS. After changing these variables, redeploy the Render service and clear
-the old `mosaic_session` cookie before testing login, registration, logout, and
-page refresh.
+`APP_ENV=production` in Render. The Pages Function forwards API requests and
+the HttpOnly session cookie through the Pages origin, avoiding a browser
+third-party cookie request. Local development keeps using Vite's same-origin
+`/api` proxy. After changing these variables, redeploy the Pages project and
+Render service, then clear the old `mosaic_session` cookie before testing
+login, registration, logout, and page refresh.
 
 The official platform pages should be checked before deployment because free
 limits and policies change:

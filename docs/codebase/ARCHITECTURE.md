@@ -5,7 +5,9 @@
 Mosaic is a Vite-served, client-routed public catalog application with a
 separate Go HTTP API and PostgreSQL persistence. Public catalog requests go
 from the browser to TMDB. Authentication, profile, and personal-list data go
-through the Go API; the browser does not access PostgreSQL or Supabase directly.
+through the Go API; production browser requests pass through a same-origin
+Cloudflare Pages Function, while local Vite requests use its `/api` proxy. The
+browser does not access PostgreSQL or Supabase directly.
 
 ## Current flow
 
@@ -14,6 +16,8 @@ browser route
   -> main.js route switch
   -> page module
   -> API client
+  -> Pages Function in production / Vite proxy in development
+  -> Go API
   -> normalized media renderers
 ```
 
@@ -62,6 +66,8 @@ uses constraints for value validity rather than row-level security.
 - `frontend/src/pages/media/media-details.js`
 - `frontend/src/components/media-card/media-card.js`
 - `backend/internal/httpserver/server.go`
+- `frontend/functions/api/[[path]].js`
+- `frontend/vite.config.js`
 - `backend/internal/domain/collection/watchlist.go`
 - `supabase/migrations/20261015120000_collection_favorites.sql`
 - `backend/internal/domain/collection/status.go`
