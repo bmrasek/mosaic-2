@@ -146,7 +146,7 @@ function welcomeMarkup() {
     </section>`;
 }
 
-function pageMarkup(data) {
+function pageMarkup(data, { isNewAccount = false } = {}) {
   const profile = data.profile ?? {};
   const stats = data.stats ?? {};
   const sections = data.sections ?? {};
@@ -172,7 +172,7 @@ function pageMarkup(data) {
         <span class="dash-avatar" data-dashboard-avatar></span>
         <div class="dash-hero-copy">
           <p class="eyebrow">Your Mosaic</p>
-          <h1 id="dashboard-title">Welcome back, ${displayName}.</h1>
+          <h1 id="dashboard-title">${isNewAccount ? "Welcome to Mosaic" : "Welcome back"}, ${displayName}.</h1>
           <p class="muted">Your personal media world, all in one place.</p>
         </div>
       </header>
@@ -323,12 +323,12 @@ function errorMarkup(message) {
     </section>`;
 }
 
-export async function renderDashboard(container, { user } = {}) {
+export async function renderDashboard(container, { user, isNewAccount = false } = {}) {
   container.classList.remove("explore-shell");
   container.innerHTML = loadingMarkup();
   try {
     const data = await dashboardService.get(user?.id);
-    container.innerHTML = pageMarkup(data);
+    container.innerHTML = pageMarkup(data, { isNewAccount });
     const avatar = container.querySelector("[data-dashboard-avatar]");
     if (avatar) {
       renderAvatar(avatar, avatarSource(data.profile), {
@@ -340,7 +340,7 @@ export async function renderDashboard(container, { user } = {}) {
   } catch (error) {
     container.innerHTML = errorMarkup(error.message);
     container.querySelector("[data-dashboard-retry]")?.addEventListener("click", () => {
-      renderDashboard(container, { user });
+      renderDashboard(container, { user, isNewAccount });
     });
   }
 }

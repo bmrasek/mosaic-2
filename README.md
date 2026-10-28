@@ -80,16 +80,18 @@ Build command: npm run build
 Build output directory: dist
 ```
 
-Set this production environment variable in Cloudflare Pages:
+Set these environment variables in Cloudflare Pages for production and preview:
 
 ```text
 VITE_TMDB_API_KEY=your_tmdb_key
 VITE_API_BASE_URL=https://mosaic-api-5q09.onrender.com
 ```
 
-Cloudflare Pages runs the Vite build with that variable; do not upload
-`frontend/.env`, `frontend/config.js`, or any other credential file. The
-`deploy` branch is for deployment synchronization only. Application changes
+The Pages Function proxies browser `/api/*` calls to the configured API
+origin, so the browser and session cookie stay on the Pages origin.
+`VITE_API_BASE_URL` is a public service origin, not a secret. Do not upload
+`frontend/.env`, `frontend/config.js`, or any credential file. The `deploy`
+branch is for deployment synchronization only. Application changes
 must be made on a `feature/<kebab-case-description>` or
 `fix/<kebab-case-description>` branch and merged into `main` first.
 

@@ -7,12 +7,13 @@
 | TMDB API v3 | Explore, Search, media details, related/provider metadata | Browser Fetch with public `VITE_TMDB_API_KEY` or `window.MOSAIC_CONFIG` | `frontend/src/api/tmdb.js` |
 | TMDB image CDN | Posters, backdrops, people, provider logos | URL construction in `imageUrl()` | `frontend/src/api/tmdb.js` |
 | PostgreSQL | User, session, profile, collection, favorite, and watchlist persistence | Go `pgxpool` queries; local Docker Compose or Supabase-hosted PostgreSQL | `compose.yml`, `backend/internal/auth/service.go`, `backend/internal/domain/collection/service.go`, `backend/internal/domain/collection/watchlist.go` |
-| Cloudflare Pages | Static frontend deployment | Vite build output and `VITE_API_BASE_URL` | `README.md`, `docs/deployment/FREE-HOSTING.md` |
+| Cloudflare Pages | Static frontend deployment and same-origin API proxy | Vite output, Pages Function, and runtime `VITE_API_BASE_URL` | `frontend/functions/api/[[path]].js`, `README.md` |
 | Render | Go API deployment | `render.yaml` and environment configuration | `render.yaml` |
 
 Supabase is used as a managed PostgreSQL host, not as a browser auth client.
 The Go API owns authentication, authorization, collection, favorite, and
-watchlist reads/writes.
+watchlist reads/writes. Production browser requests reach the API through the
+Pages Function, keeping session cookies on the frontend origin.
 
 ## Personal-list endpoints
 
@@ -52,6 +53,7 @@ requested with the core response and is rendered only when available.
 - `frontend/src/pages/explore/explore.js`
 - `frontend/src/pages/search/search.js`
 - `frontend/src/pages/media/media-details.js`
+- `frontend/functions/api/[[path]].js`
 - `backend/internal/auth/service.go`
 - `backend/internal/auth/handler.go`
 - `backend/internal/domain/collection/handler.go`
