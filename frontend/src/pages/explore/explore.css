@@ -32,7 +32,7 @@
 :root[data-theme] .explore-intro .eyebrow,
 :root[data-theme] .featured-media-content .eyebrow,
 :root[data-theme] .media-section .eyebrow {
-  color: #687800;
+  color: blue;
 }
 
 .explore-intro::after {
@@ -112,7 +112,7 @@
 }
 
 .featured-media-content > p:not(.eyebrow) {
-  color: var(--color-muted);
+  color: gray;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -124,6 +124,10 @@
   display: flex;
   gap: var(--space-4);
   margin: var(--space-4) 0 var(--space-5);
+}
+
+.featured-meta .rating {
+  color: darkcyan;
 }
 
 .explore-sections {
