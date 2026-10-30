@@ -93,7 +93,7 @@ origin, so the browser and session cookie stay on the Pages origin.
 `frontend/.env`, `frontend/config.js`, or any credential file. The `deploy`
 branch is for deployment synchronization only. Application changes
 must be made on a `feature/<kebab-case-description>` or
-`fix/<kebab-case-description>` branch and merged into `main` first.
+`fix/<kebab-case-description>` branch and merged into `main` first...
 
 ### Backend health endpoint
 
