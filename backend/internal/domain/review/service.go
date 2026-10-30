@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MdRasB/mosaic/backend/internal/domain/collection"
+	"github.com/bmrasek/mosaic-2/backend/internal/domain/collection"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

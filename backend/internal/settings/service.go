@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/MdRasB/mosaic/backend/internal/profile"
+	"github.com/bmrasek/mosaic-2/backend/internal/profile"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

@@ -3,7 +3,7 @@ package dashboard
 import (
 	"time"
 
-	"github.com/MdRasB/mosaic/backend/internal/domain/collection"
+	"github.com/bmrasek/mosaic-2/backend/internal/domain/collection"
 )
 
 // PreviewLimit bounds every dashboard section. The dashboard is a summary, not

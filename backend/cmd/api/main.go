@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MdRasB/mosaic/backend/internal/config"
-	"github.com/MdRasB/mosaic/backend/internal/httpserver"
+	"github.com/bmrasek/mosaic-2/backend/internal/config"
+	"github.com/bmrasek/mosaic-2/backend/internal/httpserver"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

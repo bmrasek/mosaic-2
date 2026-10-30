@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MdRasB/mosaic/backend/internal/config"
+	"github.com/bmrasek/mosaic-2/backend/internal/config"
 )
 
 type Handler struct {

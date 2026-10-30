@@ -1,4 +1,4 @@
-module github.com/MdRasB/mosaic/backend
+module github.com/bmrasek/mosaic-2/backend
 
 go 1.27
 
