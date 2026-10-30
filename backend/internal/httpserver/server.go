@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/MdRasB/mosaic/backend/internal/auth"
-	"github.com/MdRasB/mosaic/backend/internal/config"
-	"github.com/MdRasB/mosaic/backend/internal/dashboard"
-	"github.com/MdRasB/mosaic/backend/internal/domain/collection"
-	"github.com/MdRasB/mosaic/backend/internal/domain/review"
-	"github.com/MdRasB/mosaic/backend/internal/profile"
-	"github.com/MdRasB/mosaic/backend/internal/settings"
+	"github.com/bmrasek/mosaic-2/backend/internal/auth"
+	"github.com/bmrasek/mosaic-2/backend/internal/config"
+	"github.com/bmrasek/mosaic-2/backend/internal/dashboard"
+	"github.com/bmrasek/mosaic-2/backend/internal/domain/collection"
+	"github.com/bmrasek/mosaic-2/backend/internal/domain/review"
+	"github.com/bmrasek/mosaic-2/backend/internal/profile"
+	"github.com/bmrasek/mosaic-2/backend/internal/settings"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

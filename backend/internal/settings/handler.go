@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/MdRasB/mosaic/backend/internal/auth"
-	"github.com/MdRasB/mosaic/backend/internal/config"
-	"github.com/MdRasB/mosaic/backend/internal/profile"
+	"github.com/bmrasek/mosaic-2/backend/internal/auth"
+	"github.com/bmrasek/mosaic-2/backend/internal/config"
+	"github.com/bmrasek/mosaic-2/backend/internal/profile"
 )
 
 type Handler struct {

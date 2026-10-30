@@ -3,7 +3,7 @@ package review
 import (
 	"time"
 
-	"github.com/MdRasB/mosaic/backend/internal/domain/collection"
+	"github.com/bmrasek/mosaic-2/backend/internal/domain/collection"
 )
 
 // Input is the mutable part of a review. Title is optional; visibility defaults
