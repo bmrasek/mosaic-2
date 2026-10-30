@@ -1,9 +1,26 @@
 import { requestJSON } from "../api/http.js";
+import { cachedQuery, invalidateCached } from "../api/query-cache.js";
 
 export const profileService = {
-  get: () => requestJSON("/profile/me"),
-  update: (profile) => requestJSON("/profile/me", {
-    method: "PATCH",
-    body: JSON.stringify(profile)
-  })
+  get: () => cachedQuery("/profile/me", () => requestJSON("/profile/me"), 300000),
+  update: async (profile) => {
+    const result = await requestJSON("/profile/me", {
+      method: "PATCH",
+      body: JSON.stringify(profile)
+    });
+    invalidateCached("/profile/me", "/settings/me", "/dashboard");
+    return result;
+  },
+  uploadAvatar: async (file) => {
+    const body = new FormData();
+    body.append("avatar", file);
+    const result = await requestJSON("/profile/me/avatar/upload", { method: "POST", body });
+    invalidateCached("/profile/me", "/settings/me", "/dashboard");
+    return result;
+  },
+  clearAvatar: async () => {
+    const result = await requestJSON("/profile/me/avatar", { method: "DELETE" });
+    invalidateCached("/profile/me", "/settings/me", "/dashboard");
+    return result;
+  },
 };

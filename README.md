@@ -80,18 +80,20 @@ Build command: npm run build
 Build output directory: dist
 ```
 
-Set this production environment variable in Cloudflare Pages:
+Set these environment variables in Cloudflare Pages for production and preview:
 
 ```text
 VITE_TMDB_API_KEY=your_tmdb_key
 VITE_API_BASE_URL=https://mosaic-api-5q09.onrender.com
 ```
 
-Cloudflare Pages runs the Vite build with that variable; do not upload
-`frontend/.env`, `frontend/config.js`, or any other credential file. The
-`deploy` branch is for deployment synchronization only. Application changes
+The Pages Function proxies browser `/api/*` calls to the configured API
+origin, so the browser and session cookie stay on the Pages origin.
+`VITE_API_BASE_URL` is a public service origin, not a secret. Do not upload
+`frontend/.env`, `frontend/config.js`, or any credential file. The `deploy`
+branch is for deployment synchronization only. Application changes
 must be made on a `feature/<kebab-case-description>` or
-`fix/<kebab-case-description>` branch and merged into `main` first.
+`fix/<kebab-case-description>` branch and merged into `main` first...
 
 ### Backend health endpoint
 
@@ -135,6 +137,23 @@ Authenticated profile routes are `/profile` and `/settings/profile`. Profile
 reads and updates go through the Go API (`/api/v1/profile/me`); the browser
 never connects directly to Supabase. Apply the profile migration before
 deploying a backend version that provisions profiles during registration.
+
+Authenticated collection routes are `/collection` and `/favorites`. Collection
+and favorite operations use the Go API and the shared
+`supabase/migrations/20261015120000_collection_favorites.sql` schema. Apply
+that migration before deploying the corresponding backend or frontend.
+Favorites and collection membership are independent; favoriting a title does
+not add it to the collection, and removing a collection item preserves its
+favorite state.
+
+The authenticated watchlist route is `/watchlist`. Watchlist operations use the
+Go API (`/api/v1/watchlist`). Apply the watchlist and status migrations before
+deploying. A title is on the watchlist when its saved-media row has a status,
+and that status is one of `watchlist`, `watching`, `completed`, `paused`, or
+`dropped`. Watchlist membership is independent of collection and favorites, and
+a saved title is deleted only once it belongs to no list. Status changes update
+`status_changed_at` transactionally and are recorded at
+`GET /api/v1/watchlist/{id}/history`.
 
 During local Vite development, API requests intentionally use the relative
 `/api` proxy even if `VITE_API_BASE_URL` is present in `frontend/.env`. This

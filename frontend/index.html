@@ -10,6 +10,23 @@
     <link rel="icon" type="image/svg+xml" href="/favicon/mosaic-favicon.svg" />
     <title>Mosaic | Your world</title>
     <link rel="stylesheet" href="./src/styles/main.css" />
+    <script>
+      // Apply the stored theme before the first paint so a signed-in user never
+      // sees a flash of the wrong theme.
+      (function () {
+        try {
+          var stored = window.localStorage.getItem("mosaic-theme");
+          var theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+          var resolved = theme === "system"
+            ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+            : theme;
+          document.documentElement.toggleAttribute("data-theme", resolved === "light");
+          document.documentElement.style.colorScheme = resolved;
+        } catch (error) {
+          // Storage can be unavailable in private mode; the default theme still applies.
+        }
+      })();
+    </script>
     <script type="module" src="/config.js"></script>
   </head>
   <body>
@@ -26,6 +43,15 @@
         </a>
         <nav class="sidebar-nav" aria-label="Main navigation">
           <p class="nav-heading sidebar-label">Main</p>
+          <a class="nav-link" href="/dashboard"
+            ><img
+              class="sidebar-icon"
+              src="/icons/slidebar-icons/mosaic-dashboard.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span class="sidebar-label">Dashboard</span></a
+          >
           <a class="nav-link is-active" href="/explore" aria-current="page"
             ><img
               class="sidebar-icon"
@@ -49,8 +75,13 @@
             <span class="sidebar-label">Movies</span></a
           >
           <a class="nav-link nav-link-disabled" href="#tv" aria-disabled="true"
-            ><span aria-hidden="true">▤</span
-            ><span class="sidebar-label">TV Shows</span></a
+            ><img
+              class="sidebar-icon"
+              src="/icons/slidebar-icons/mosaic-tv.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span class="sidebar-label">TV Shows</span></a
           >
           <a
             class="nav-link nav-link-disabled"
@@ -65,10 +96,7 @@
             <span class="sidebar-label">Books</span></a
           >
           <p class="nav-heading sidebar-label">My library</p>
-          <a
-            class="nav-link nav-link-disabled"
-            href="#collection"
-            aria-disabled="true"
+          <a class="nav-link" href="/collection"
             ><img
               class="sidebar-icon"
               src="/icons/slidebar-icons/mosaic-collection.svg"
@@ -77,10 +105,7 @@
             />
             <span class="sidebar-label">Collection</span></a
           >
-          <a
-            class="nav-link nav-link-disabled"
-            href="#favorites"
-            aria-disabled="true"
+          <a class="nav-link" href="/favorites"
             ><img
               class="sidebar-icon"
               src="/icons/slidebar-icons/mosaic-favorites.svg"
@@ -89,10 +114,7 @@
             />
             <span class="sidebar-label">Favorites</span></a
           >
-          <a
-            class="nav-link nav-link-disabled"
-            href="#watchlist"
-            aria-disabled="true"
+          <a class="nav-link" href="/watchlist"
             ><img
               class="sidebar-icon"
               src="/icons/slidebar-icons/mosaic-watchlist.svg"
@@ -100,6 +122,24 @@
               aria-hidden="true"
             />
             <span class="sidebar-label">Watchlist</span></a
+          >
+          <a class="nav-link" href="/ratings"
+            ><img
+              class="sidebar-icon"
+              src="/icons/slidebar-icons/mosaic-ratings.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span class="sidebar-label">Ratings</span></a
+          >
+          <a class="nav-link" href="/reviews"
+            ><img
+              class="sidebar-icon"
+              src="/icons/slidebar-icons/mosaic-reviews.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span class="sidebar-label">Reviews</span></a
           >
           <p class="nav-heading sidebar-label">Account</p>
           <a class="nav-link" href="/profile"
@@ -111,9 +151,14 @@
             />
             <span class="sidebar-label">Profile</span></a
           >
-          <a class="nav-link" href="/settings/profile"
-            ><span aria-hidden="true">⚙</span
-            ><span class="sidebar-label">Settings</span></a
+          <a class="nav-link" href="/settings"
+            ><img
+              class="sidebar-icon"
+              src="/icons/slidebar-icons/mosaic-settings.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span class="sidebar-label">Settings</span></a
           >
         </nav>
       </aside>
@@ -180,12 +225,20 @@
               Register
             </button>
             <button
+              class="button button-ghost topbar-logout-action"
+              id="topbar-logout-button"
+              type="button"
+              hidden
+            >
+              Log out
+            </button>
+            <button
               class="avatar-button"
               id="profile-button"
               type="button"
               aria-label="Open profile"
+              hidden
             >
-              MR
             </button>
           </div>
         </header>

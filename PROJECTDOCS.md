@@ -6,10 +6,11 @@ application: visitors can explore TMDB-powered media rows, search movies and
 TV shows, inspect search suggestions, switch themes, and use the responsive
 desktop/mobile shell.
 
-The repository also contains a Go API foundation, PostgreSQL Docker
-scaffolding, and the public M04 media-details page. Authentication,
-collections, favorites, watchlists, ratings, reviews, and user data persistence
-remain planned for later modules.
+The repository also contains the Go API, PostgreSQL scaffolding, and the
+public M04 media-details page. Signed-in users get Go-owned accounts and
+profiles plus three personal lists: a collection, favorites, and a watchlist
+with per-title status. Ratings, reviews, social features, and photos remain
+planned for later modules.
 
 > **Current implementation note:** This document describes what exists in the
 > repository today. Planned directories are preserved with `.gitkeep` files,
@@ -40,16 +41,30 @@ remain planned for later modules.
 - Provides local PostgreSQL infrastructure through Docker Compose.
 - Provides public `/media/movie/:id` and `/media/tv/:id` details pages with
   loading, invalid-route, retry, related-media, and metadata states.
+- Provides email/password accounts with an HttpOnly session cookie, Argon2id
+  password hashing, session restore, and protected routes.
+- Provides a profile with username, display name, bio, visibility, and avatar
+  upload.
+- Provides `/collection` and `/favorites` pages with type and sort filters.
+- Provides `/watchlist` with add/remove from the media details page, type and
+  status filters, sorting, and per-title status transitions.
+- Provides `/ratings` for personal scores and `/reviews` for written reviews
+  with per-review visibility and spoiler flags.
+- Provides `/dashboard`, a personal home that aggregates the signed-in user's
+  library statistics, continue watching, watch next, recently added, favorites,
+  recently rated, completed titles, and recent reviews.
+- Provides a `/settings` area with account and profile, privacy, appearance,
+  notification, and account-data sections, plus a light, dark, and system theme
+  that is stored on the account.
 
 ### What is not implemented yet
 
-- Authentication and account management.
-- User collections, favorites, and watchlists.
-- Ratings, reviews, social features, and profile pages.
-- Supabase integration and row-level security.
-- Application database schema, seeds, and policies.
-- Backend media services and repositories.
-- Automated frontend tests and browser end-to-end tests.
+- Public sharing of collections, favorites, watchlists, and ratings.
+- Social features: friends, activity feeds, notification delivery, and
+  comparison.
+- Account data export, password change, and account deletion.
+- Photos and albums.
+- Row-level security policies and automated frontend/browser tests.
 
 ## Documentation map
 
@@ -64,7 +79,6 @@ remain planned for later modules.
 | [`docs/codebase/TESTING.md`](docs/codebase/TESTING.md) | Current test commands and coverage gaps |
 | [`docs/codebase/CONCERNS.md`](docs/codebase/CONCERNS.md) | Current risks, technical debt, and scaling concerns |
 | [`docs/Mosaic_Project_Complete_Plan_Final.md`](docs/Mosaic_Project_Complete_Plan_Final.md) | Canonical project plan and module roadmap |
-| [`docs/M04-M05-MERGED-PLAN.md`](docs/M04-M05-MERGED-PLAN.md) | Reconciled M04/M05 implementation plan |
 | [`docs/deployment/FREE-HOSTING.md`](docs/deployment/FREE-HOSTING.md) | Free hosting and local deployment model |
 
 ## Project structure
@@ -73,6 +87,11 @@ remain planned for later modules.
 .
 ├── backend/
 │   ├── cmd/api/main.go                 Go API entrypoint
+│   ├── internal/auth/                  Registration, login, sessions, Argon2id
+│   ├── internal/profile/               Profile reads, updates, avatar storage
+│   ├── internal/dashboard/             Read-only dashboard aggregation
+│   ├── internal/settings/              Preferences and privacy policy
+│   ├── internal/domain/collection/     Collection, favorites, watchlist
 │   ├── internal/config/config.go       Environment configuration
 │   ├── internal/httpserver/server.go   HTTP routes and CORS
 │   ├── internal/httpserver/server_test.go
@@ -91,11 +110,21 @@ remain planned for later modules.
 │   ├── public/                         Static assets and config fallback
 │   └── src/
 │       ├── api/                        TMDB request and normalization layer
+│       ├── auth/                       Session API client
+│       ├── collection/                 Collection and favorites API client
+│       ├── watchlist/                  Watchlist API client
+│       ├── ratings/                    Personal ratings API client
+│       ├── reviews/                    Review API client
+│       ├── dashboard/                  Dashboard API client
+│       ├── settings/                   Settings API client
+│       ├── theme/                      Light, dark, and system theme state
+│       ├── profile/                    Profile API client and avatar helpers
 │       ├── components/                 Reusable UI components
 │       ├── pages/                      Route-level page modules
 │       ├── styles/                     Global and responsive CSS
 │       ├── utils/                      Small shared utilities
 │       └── main.js                     Browser entrypoint and route controller
+├── supabase/migrations/               Versioned PostgreSQL migrations
 ├── scripts/                            Planned seed/maintenance scripts
 ├── compose.yml                         Local PostgreSQL service
 ├── LICENSE                             Apache License 2.0
@@ -162,14 +191,19 @@ auth placeholders, profile placeholder, toast, modal, and `#app-content`.
 
 `frontend/src/main.js`:
 
-1. Restores the saved theme.
+1. Restores the saved theme before the first paint, then keeps it in step with
+   the account setting and the operating system.
 2. Configures desktop sidebar collapse and mobile drawer behavior.
 3. Handles placeholder authentication/profile actions.
 4. Prevents the active Explore sidebar link from reloading the current page.
 5. Preserves ordinary navigation for Mosaic branding links.
-6. Routes `/`, `/explore`, `/search`, and `/media/...`.
+6. Routes `/`, `/explore`, `/search`, and `/media/...` publicly, and
+   `/collection`, `/favorites`, `/watchlist`, `/ratings`, `/reviews`,
+   `/profile`, `/dashboard`, and `/settings/...` for signed-in users.
 7. Handles search submission with `history.pushState`.
 8. Rerenders routes when browser Back/Forward emits `popstate`.
+9. Clears the shared query cache when an account signs in or out, so one
+   account can never see another account's cached pages.
 
 ### Explore page
 
@@ -223,6 +257,87 @@ last input before requesting TMDB results. It supports ArrowUp, ArrowDown,
 Enter, Escape, focus reopening, outside-click dismissal, and accessible
 combobox/listbox attributes.
 
+## Personal lists
+
+Collection, favorites, and watchlist are three views over one `user_media`
+relationship, not three tables. The Go API owns every read and write and filters
+each query by the authenticated `user_id`.
+
+| List | Membership marker | Page |
+|---|---|---|
+| Collection | `in_collection` | `/collection` |
+| Favorites | `is_favorite` (with `favorited_at`) | `/favorites` |
+| Watchlist | `status IS NOT NULL` | `/watchlist` |
+
+Watchlist status is one of `watchlist`, `watching`, `completed`, `paused`, or
+`dropped`. `user_media` rows are deleted only once a title belongs to no list,
+so removing a collection entry keeps a favorite or watchlist status intact.
+
+`frontend/src/pages/watchlist/watchlist.js` reads `type`, `status`, and `sort`
+from the query string so the view is refresh- and history-safe, renders
+loading/empty/error states with retry, and applies status changes and removals
+without a full reload.
+
+A `user_media` row is deleted only once a title holds no personal state at all:
+not in the collection, not a favorite, without a status, without a rating, and
+without a review. That single rule lives in
+`backend/internal/domain/collection/cleanup.go` and is shared by every removal
+path, so removing a collection entry can never silently erase a rating or a
+review.
+
+## Dashboard
+
+`/dashboard` is the signed-in user's personal home. It is a read-only
+aggregation over the existing relationship, not a second collection page.
+
+`frontend/src/pages/dashboard/dashboard.js` renders:
+
+- a greeting with the account avatar and display name;
+- four primary statistics: collected, favorites, in progress, completed;
+- five secondary statistics: planned, paused, dropped, rated, reviews;
+- Continue Watching, Watch Next, Recently Added, Favorites, Recently Rated,
+  Completed, and Recent Reviews, each limited to five titles with a link to the
+  matching full page;
+- a welcome panel for a new account and a specific empty state per section;
+- a loading skeleton and a retry panel. A failed request never renders zero
+  statistics as if they were real.
+
+The dashboard cache is scoped to the signed-in account and is invalidated after
+every collection, favorite, watchlist, status, rating, review, and profile
+change, so the numbers always match the library behind them.
+
+## Settings
+
+`/settings` groups the preferences for a Mosaic account.
+
+| Route | Page | State |
+|---|---|---|
+| `/settings` | Overview of every section | Live |
+| `/settings/profile` | Username, display name, bio, avatar, profile visibility | Live |
+| `/settings/privacy` | Profile visibility | Live |
+| `/settings/appearance` | Light, dark, system theme | Live |
+| `/settings/notifications` | Future notification categories | Preview only |
+| `/settings/account` | Account details, security, and data notes | Informational |
+
+Privacy rules that the implementation keeps:
+
+- profile visibility has one home, `user_profiles.visibility`. The settings API
+  reads and writes it through the profile domain;
+- a public review never exposes the username of a private profile;
+- collection, favorites, watchlist, ratings, and activity have no public read
+  endpoint yet, so their settings stay private and the interface says so
+  instead of offering a control that appears to work;
+- notification preferences are stored for the future notification module. The
+  interface states that no notification is delivered today;
+- data export, password change, and account deletion are described but not
+  offered, because a control that cannot complete its promise is worse than no
+  control.
+
+`frontend/src/theme/theme.js` owns the theme. A guest keeps the choice in the
+browser. A signed-in user keeps it on the account, so it follows them to
+another browser, and an inline script in `frontend/index.html` applies the
+known theme before the first paint.
+
 ## TMDB and content safety
 
 `frontend/src/api/tmdb.js` is the centralized TMDB client.
@@ -261,10 +376,81 @@ release. It must never be replaced with a Supabase secret or service-role key.
 - registers `GET /health`;
 - returns `{"status":"ok"}`;
 - rejects non-GET health requests with HTTP 405;
+- registers the auth, profile, collection, favorites, and watchlist routes when
+  a database pool is configured;
 - handles CORS headers and OPTIONS preflight requests.
 
 `backend/internal/httpserver/server_test.go` uses `httptest` to verify the
 health response and method rejection without external services.
+
+### Personal-list API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/collection` | Saved collection, with `type`, `sort`, `limit`, `offset` |
+| POST | `/api/v1/collection` | Add a title to the collection |
+| DELETE | `/api/v1/collection/{id}` | Remove a title from the collection |
+| PUT/DELETE | `/api/v1/collection/{id}/favorite` | Set or clear a favorite |
+| GET | `/api/v1/collection/check` | Saved state for one title |
+| GET | `/api/v1/favorites` | Favorite titles |
+| PUT | `/api/v1/favorites/media` | Favorite a title directly |
+| GET | `/api/v1/watchlist` | Watchlisted titles, with `type`, `status`, `sort`, `limit`, `offset` |
+| POST | `/api/v1/watchlist` | Add a title to the watchlist |
+| DELETE | `/api/v1/watchlist/{id}` | Remove a title from the watchlist |
+| PUT | `/api/v1/watchlist/{id}/status` | Set watchlist status |
+| GET | `/api/v1/ratings` | Rated titles |
+| PUT | `/api/v1/ratings/{id}` | Set a personal rating |
+| PUT | `/api/v1/ratings/media` | Rate a title directly |
+| GET | `/api/v1/reviews/me` | Own reviews |
+| PUT | `/api/v1/reviews/media` | Create or replace a review |
+| PATCH/DELETE | `/api/v1/reviews/{id}` | Update or delete an own review |
+| GET | `/api/v1/media/{type}/{id}/reviews` | Public reviews for one title |
+
+Watchlist status must be one of `watchlist`, `watching`, `completed`, `paused`,
+or `dropped`; the database enforces the same list with a check constraint.
+
+### Dashboard API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/dashboard` | Profile summary, library statistics, and bounded previews |
+
+`backend/internal/dashboard` is read-only. The endpoint:
+
+- takes the user ID from the validated session, never from a parameter;
+- loads statistics with one conditional-aggregate query over the user's
+  `user_media` rows, plus a separate count of owned reviews;
+- loads the previews with one ranked query that returns at most five titles per
+  section, so no full collection is ever fetched;
+- reads every section from one read-only, repeatable-read snapshot, so the
+  numbers and the previews describe the same moment;
+- returns empty arrays instead of nulls, and fails with HTTP 503 rather than
+  reporting fabricated zeros when a query fails.
+
+Statistics overlap by design: a title can be collected, favorited, rated, and
+reviewed at the same time, so the values are never summed into a unique total.
+
+### Settings API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/settings/me` | Current settings for the signed-in user |
+| PATCH | `/api/v1/settings/me` | Update supplied settings |
+
+`backend/internal/settings` keeps the privacy policy in one place:
+
+- `user_settings` stores the theme, the list visibility preferences, the
+  reserved activity visibility, and the notification preferences;
+- profile visibility is not duplicated. It stays in `user_profiles` and is read
+  and written through the profile domain, inside the same transaction when a
+  request changes both;
+- PATCH applies only the supplied fields, rejects unknown fields and invalid
+  values, and leaves `updated_at` untouched when nothing actually changes;
+- the user ID is always taken from the session, so one user can never read or
+  write another user's settings;
+- collection, favorites, watchlist, ratings, and activity sharing have no public
+  read endpoint yet. They are stored private by default and the settings UI
+  states that plainly instead of offering a toggle that does nothing.
 
 ### PostgreSQL
 
@@ -276,8 +462,24 @@ health response and method rejection without external services.
 - read-only schema initialization mount;
 - `pg_isready` healthcheck.
 
-The database directories are currently scaffolding. No application schema,
-seed data, or policy implementation is present yet.
+The `database/` directories are still scaffolding. The applied schema lives in
+`supabase/migrations/` and is the source of truth: accounts and sessions,
+profiles and avatar bytes, saved media with collection/favorite membership,
+the watchlist status constraint, personal ratings, written reviews, the
+collection-add timestamp, and the user settings table. `make db-migrate`
+applies those files locally, and the Supabase GitHub integration applies
+pending files in production. No seed data or row-level security policies exist
+yet.
+
+Migration notes:
+
+- `20261023120000_collection_timestamps.sql` adds `user_media.collected_at`
+  and keeps it consistent with `in_collection` through a check constraint.
+  Existing rows are backfilled from `created_at`, so collection-add times for
+  titles saved before this migration are approximate.
+- `20261023130000_user_settings.sql` creates `user_settings`, backfills every
+  existing account with private-by-default preferences, and stores the
+  notification preferences that the future notification module will use.
 
 ## Configuration
 
@@ -382,15 +584,34 @@ repository workflow.
 | M01 shell/design foundation | Implemented |
 | M02 public Explore | Implemented |
 | M03 global search | Implemented |
-| M04 media details | Planned |
-| M05 authentication | Planned |
-| Collections/favorites/watchlist | Planned |
-| Ratings/reviews/social features | Planned |
-| Database schema and policies | Planned |
+| M04 media details | Implemented |
+| M05 authentication | Implemented |
+| M06 profile | Implemented |
+| M07 collection | Implemented |
+| M08 favorites | Implemented |
+| M09 watchlist | Implemented |
+| M10 status dashboards | Implemented in M13 |
+| M11 ratings and reviews | Implemented |
+| M13 dashboard | Implemented |
+| M14 privacy and settings | Implemented |
+| Social, photos, and multi-media types | Planned |
+| Row-level security policies | Planned |
 
-M03 ends at search results and navigation to media routes. M04 begins at the
-media details experience. Authentication and user-owned features should not be
-introduced into the public search layer prematurely.
+M03 ends at search results and navigation to media routes. M09 completes the
+first personal-collection slice: saved titles, favorites, and the watchlist with
+status transitions. Status dashboards, ratings, and reviews build on that
+relationship and should not be introduced into the public search layer
+prematurely.
+
+M13 turns that relationship into a personal home. It reads the existing
+collection, favorites, watchlist, ratings, and reviews instead of duplicating
+them, and it never sums overlapping membership counts into a single total.
+
+M14 adds the preferences and privacy foundation. Profile visibility and
+per-review visibility are live. Public sharing of collections, favorites,
+watchlists, and ratings is deliberately not offered until a public read
+endpoint with a matching access rule exists, and data export, password change,
+and account deletion remain separate milestones.
 
 ## Team responsibilities
 

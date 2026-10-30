@@ -9,5 +9,13 @@
 @import url("../pages/media/media.css");
 @import url("../pages/auth/auth.css");
 @import url("../pages/profile/profile.css");
+@import url("../pages/collection/collection.css");
+@import url("../pages/watchlist/watchlist.css");
+@import url("../pages/dashboard/dashboard.css");
+@import url("../pages/settings/settings.css");
+@import url("../pages/ratings/ratings.css");
+@import url("../components/rating/rating.css");
+@import url("../pages/reviews/reviews.css");
+@import url("../components/review/review.css");
 @import url("../components/search/search-suggestions.css");
 @import url("./responsive.css");

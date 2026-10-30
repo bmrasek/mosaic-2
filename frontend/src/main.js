@@ -3,10 +3,25 @@ import { renderExplorePage } from "./pages/explore/explore.js";
 import { renderSearchLanding, renderSearchPage } from "./pages/search/search.js";
 import { parseMediaRoute, renderMediaDetailsPage } from "./pages/media/media-details.js";
 import { authService } from "./auth/auth-service.js";
-import { renderAuthPage, renderDashboard } from "./pages/auth/auth.js";
+import { profileService } from "./profile/profile-service.js";
+import { avatarInitials, avatarSource, renderAvatar } from "./profile/avatar.js";
+import { renderAuthPage } from "./pages/auth/auth.js";
+import { renderDashboard } from "./pages/dashboard/dashboard.js";
 import { renderProfilePage } from "./pages/profile/profile.js";
 import { renderProfileSettings } from "./pages/profile/profile-settings.js";
+import { renderCollectionPage } from "./pages/collection/collection.js";
+import { renderWatchlistPage } from "./pages/watchlist/watchlist.js";
+import { renderRatingsPage } from "./pages/ratings/ratings.js";
+import { renderReviewsPage } from "./pages/reviews/reviews.js";
 import { saveRecentSearch } from "./utils/recent-searches.js";
+import { clearQueryCache } from "./api/query-cache.js";
+import { settingsService } from "./settings/settings-service.js";
+import { applyTheme, getTheme, initTheme, resolveTheme } from "./theme/theme.js";
+import { renderSettingsOverview } from "./pages/settings/settings.js";
+import { renderPrivacySettings } from "./pages/settings/privacy.js";
+import { renderAppearanceSettings } from "./pages/settings/appearance.js";
+import { renderNotificationsSettings } from "./pages/settings/notifications.js";
+import { renderAccountSettings } from "./pages/settings/account.js";
 
 const themeToggle = document.querySelector("#theme-toggle");
 const appShell = document.querySelector(".app-shell");
@@ -16,21 +31,35 @@ const sidebarToggle = document.querySelector("#sidebar-toggle");
 const sidebarOverlay = document.querySelector("#sidebar-overlay");
 const loginButton = document.querySelector("#login-button");
 const registerButton = document.querySelector("#register-button");
+const topbarLogoutButton = document.querySelector("#topbar-logout-button");
 const profileButton = document.querySelector("#profile-button");
 const navLinks = document.querySelectorAll(".nav-link");
-const themeStorageKey = "mosaic-theme";
 const content = document.querySelector("#app-content");
 const searchForm = document.querySelector("#global-search-form");
 const searchInput = document.querySelector("#global-search");
 let currentUser = null;
+let currentProfile = null;
+let sessionLoaded = false;
+let sessionGeneration = 0;
+let pendingNewAccountGreeting = false;
 
-function setTheme(isLight, { persist = true } = {}) {
-  document.documentElement.toggleAttribute("data-theme", isLight);
+function updateThemeToggle() {
+  const resolved = resolveTheme(getTheme());
+  const isLight = resolved === "light";
   themeToggle.setAttribute("aria-pressed", String(isLight));
   themeToggle.textContent = isLight ? "Use dark theme" : "Use light theme";
+}
 
-  if (persist) {
-    window.localStorage.setItem(themeStorageKey, isLight ? "light" : "dark");
+// applyThemeWithAccountSave applies the theme immediately and, for a signed-in
+// user, stores it on the account so it follows them to another browser.
+async function applyThemeWithAccountSave(theme, previousTheme) {
+  applyTheme(theme);
+  if (!currentUser) return;
+  try {
+    await settingsService.update({ theme });
+  } catch (error) {
+    applyTheme(previousTheme);
+    showMessage(error.message);
   }
 }
 
@@ -42,11 +71,6 @@ function showToast() {
 function showMessage(message) {
   toast.textContent = message;
   showToast();
-}
-
-function restoreTheme() {
-  const savedTheme = window.localStorage.getItem(themeStorageKey);
-  setTheme(savedTheme === "light", { persist: false });
 }
 
 function setSidebarCollapsed(isCollapsed) {
@@ -87,12 +111,43 @@ function isCurrentNavigationTarget(link) {
   );
 }
 
+function topbarInitials() {
+  const fallback = currentUser?.email ? currentUser.email.slice(0, 2).toUpperCase() : "MR";
+  return avatarInitials(currentProfile, fallback);
+}
+
 function updateAuthControls() {
   loginButton.hidden = Boolean(currentUser);
   registerButton.hidden = Boolean(currentUser);
+  topbarLogoutButton.hidden = !currentUser;
   profileButton.hidden = !currentUser;
-  profileButton.textContent = currentUser ? currentUser.email.slice(0, 2).toUpperCase() : "MR";
+  if (currentUser) {
+    renderAvatar(profileButton, avatarSource(currentProfile), {
+      imageClass: "avatar-button-image",
+      initials: topbarInitials()
+    });
+  } else {
+    profileButton.replaceChildren();
+  }
   profileButton.setAttribute("aria-label", currentUser ? `Open account for ${currentUser.email}` : "Open profile");
+}
+
+async function logout() {
+  topbarLogoutButton.disabled = true;
+  try {
+    await authService.logout();
+    clearQueryCache();
+    currentUser = null;
+    currentProfile = null;
+    sessionLoaded = false;
+    updateAuthControls();
+    window.history.pushState({}, "", "/explore");
+    renderRoute();
+  } catch (error) {
+    showMessage(error.message);
+  } finally {
+    topbarLogoutButton.disabled = false;
+  }
 }
 
 function updateNavigationState() {
@@ -102,7 +157,9 @@ function updateNavigationState() {
     const targetPath = new URL(link.href, window.location.origin).pathname;
     const isExplore = (currentPath === "/" || currentPath === "/explore")
       && (targetPath === "/" || targetPath === "/explore");
-    const isActive = isExplore || targetPath === currentPath;
+    // The Settings entry owns every settings subsection.
+    const isSettingsSection = targetPath === "/settings" && currentPath.startsWith("/settings");
+    const isActive = isExplore || isSettingsSection || targetPath === currentPath;
     link.classList.toggle("is-active", isActive);
     if (isActive) {
       link.setAttribute("aria-current", "page");
@@ -119,12 +176,63 @@ function safeRedirectPath(path) {
 }
 
 async function loadSession() {
-  try {
-    currentUser = await authService.me();
-  } catch {
-    currentUser = null;
+  if (sessionLoaded) {
+    updateAuthControls();
+    return;
   }
+  const generation = sessionGeneration;
+  let user = null;
+  try {
+    user = await authService.me();
+  } catch {
+    user = null;
+  }
+  if (generation !== sessionGeneration) return;
+
+  currentUser = user;
+  let profile = null;
+  if (user) {
+    try {
+      profile = await profileService.get();
+    } catch {
+      profile = null;
+    }
+    try {
+      // The account theme wins over the local preference once it is known.
+      const settings = await settingsService.get();
+      applyTheme(settings.theme);
+    } catch {
+      // A settings failure must not block the page; the local theme stays.
+    }
+  }
+  if (generation !== sessionGeneration) return;
+
+  currentProfile = profile;
+  sessionLoaded = true;
   updateAuthControls();
+  updateThemeToggle();
+}
+
+function renderSettingsRoute(path) {
+  switch (path) {
+    case "/settings/profile":
+      renderProfileSettings(content);
+      return;
+    case "/settings/privacy":
+      renderPrivacySettings(content);
+      return;
+    case "/settings/appearance":
+      renderAppearanceSettings(content);
+      return;
+    case "/settings/notifications":
+      renderNotificationsSettings(content);
+      return;
+    case "/settings/account":
+      renderAccountSettings(content);
+      return;
+    default:
+      renderSettingsOverview(content);
+  }
 }
 
 function renderRoute() {
@@ -139,36 +247,63 @@ function renderRoute() {
       loadSession().then(renderRoute);
       return;
     }
-    renderAuthPage(content, path.slice(1), () => {
+    renderAuthPage(content, path.slice(1), ({ isNewAccount }) => {
       const destination = new URLSearchParams(window.location.search).get("redirect");
       const safeDestination = safeRedirectPath(destination ?? "/dashboard");
+      pendingNewAccountGreeting = isNewAccount && safeDestination === "/dashboard";
       window.history.pushState({}, "", safeDestination);
+      sessionGeneration += 1;
+      sessionLoaded = false;
       loadSession().then(renderRoute);
     });
-  } else if (path === "/profile" || path === "/settings/profile") {
+  } else if (path === "/profile") {
     if (!currentUser) {
       window.history.replaceState({}, "", `/login?redirect=${encodeURIComponent(path)}`);
       loadSession().then(renderRoute);
       return;
     }
-    if (path === "/profile") {
-      renderProfilePage(content);
-    } else {
-      renderProfileSettings(content);
+    renderProfilePage(content, logout);
+  } else if (path === "/settings" || path.startsWith("/settings/")) {
+    if (!currentUser) {
+      window.history.replaceState({}, "", `/login?redirect=${encodeURIComponent(path)}`);
+      renderRoute();
+      return;
     }
+    renderSettingsRoute(path);
+  } else if (path === "/collection" || path === "/favorites" || path === "/watchlist") {
+    if (!currentUser) {
+      window.history.replaceState({}, "", `/login?redirect=${encodeURIComponent(path)}`);
+      renderRoute();
+      return;
+    }
+    if (path === "/watchlist") {
+      renderWatchlistPage(content);
+    } else {
+      renderCollectionPage(content, { favoritePage: path === "/favorites" });
+    }
+  } else if (path === "/ratings") {
+    if (!currentUser) {
+      window.history.replaceState({}, "", `/login?redirect=${encodeURIComponent(path)}`);
+      renderRoute();
+      return;
+    }
+    renderRatingsPage(content);
+  } else if (path === "/reviews") {
+    if (!currentUser) {
+      window.history.replaceState({}, "", `/login?redirect=${encodeURIComponent(path)}`);
+      renderRoute();
+      return;
+    }
+    renderReviewsPage(content);
   } else if (path === "/dashboard") {
     if (!currentUser) {
       window.history.replaceState({}, "", `/login?redirect=${encodeURIComponent(path)}`);
       renderRoute();
       return;
     }
-    renderDashboard(content, currentUser, async () => {
-      await authService.logout();
-      currentUser = null;
-      updateAuthControls();
-      window.history.pushState({}, "", "/explore");
-      renderRoute();
-    });
+    const isNewAccount = pendingNewAccountGreeting;
+    pendingNewAccountGreeting = false;
+    renderDashboard(content, { user: currentUser, isNewAccount });
   } else if (path === "/" || path === "/explore") {
     renderExplorePage(content);
   } else if (path === "/search") {
@@ -196,14 +331,17 @@ function renderRoute() {
         </section>`;
       return;
     }
-    renderMediaDetailsPage(content, mediaRoute);
+    renderMediaDetailsPage(content, mediaRoute, currentUser);
   } else {
     renderPlaceholder("This page is not available yet.");
   }
 }
 
 themeToggle.addEventListener("click", () => {
-  setTheme(!document.documentElement.hasAttribute("data-theme"));
+  const previousTheme = getTheme();
+  const resolved = resolveTheme(previousTheme);
+  const next = resolved === "light" ? "dark" : "light";
+  applyThemeWithAccountSave(next, previousTheme);
 });
 
 sidebarToggle.addEventListener("click", () => {
@@ -231,6 +369,7 @@ loginButton.addEventListener("click", () => {
 registerButton.addEventListener("click", () => {
   window.location.href = "/register";
 });
+topbarLogoutButton.addEventListener("click", logout);
 profileButton.addEventListener("click", () => {
   if (currentUser) {
     window.history.pushState({}, "", "/profile");
@@ -291,7 +430,14 @@ window.addEventListener("popstate", () => {
   loadSession().then(renderRoute);
 });
 
-restoreTheme();
+window.addEventListener("mosaic:profile-updated", (event) => {
+  currentProfile = event.detail ?? null;
+  updateAuthControls();
+});
+
+initTheme();
+updateThemeToggle();
+window.addEventListener("mosaic:theme-changed", updateThemeToggle);
 if (!window.matchMedia("(max-width: 800px)").matches) {
   setSidebarCollapsed(true);
 }

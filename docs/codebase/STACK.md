@@ -30,14 +30,16 @@ Equivalent frontend/backend commands are documented in `README.md`.
 ## Configuration
 
 - `frontend/.env.example`: public `VITE_TMDB_API_KEY`.
+- Cloudflare Pages `VITE_API_BASE_URL`: runtime API origin read by the Pages
+  Function; browser requests use the same-origin `/api` path.
 - `frontend/config.example.js`: ignored Live Server runtime configuration.
 - `.env.example`: local PostgreSQL variables.
 - Backend `PORT` and `CORS_ALLOWED_ORIGINS` are read by
   `backend/internal/config/config.go`.
 - Backend `DATABASE_URL`, `SESSION_COOKIE_NAME`, and `APP_ENV` configure
   authentication and session cookies. Production uses `Secure` and
-  `SameSite=None` for the cross-site Cloudflare Pages/Render deployment;
-  local development uses `SameSite=Lax`.
+  `SameSite=None`; the Pages Function proxies browser requests through the
+  frontend origin. Local development uses `SameSite=Lax`.
 
 ## Evidence
 
